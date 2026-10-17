@@ -1,0 +1,64 @@
+name: Build APK
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main, master]
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Unzip project.zip
+        run: |
+          if [ ! -f project.zip ]; then
+            echo "ERROR: project.zip tidak ada di akar repositori. Upload file project.zip lewat Add file > Upload files."
+            exit 1
+          fi
+          mkdir -p build
+          unzip -q -o project.zip -d build
+          ls -la build
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install web dependencies
+        working-directory: build
+        run: npm install --no-audit --no-fund
+
+      - name: Bundle web app
+        working-directory: build
+        run: npm run prepare-android
+
+      - name: Accept Android licenses
+        run: yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --licenses > /dev/null || true
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.10.2'
+
+      - name: Build debug APK
+        working-directory: build/android
+        run: gradle assembleDebug --stacktrace
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: 3d-character-simulator-debug-apk
+          path: build/android/app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error
